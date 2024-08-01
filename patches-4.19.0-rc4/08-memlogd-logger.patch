@@ -175,7 +175,7 @@ index b0d23b2..949d281 100644
 -    if (ret) {
 -        LOG("failed to open logfile %s: %s",fullname,strerror(errno));
 -        exit(-1);
-+    logfile = xtl_logger_create_external(name);
++    logfile = xtl_logger_create_external((char *)name);
 +    if (logfile < 0) {
 +           ret = libxl_create_logfile(ctx, name, &fullname);
 +           if (ret) {
