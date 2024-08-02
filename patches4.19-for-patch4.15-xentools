@@ -1,6 +1,6 @@
 diff -uprN patches-4.15.0/08-memlogd-logger.patch patches-4.19.0-rc4/08-memlogd-logger.patch
---- patches-4.15.0/08-memlogd-logger.patch	2024-07-29 22:10:42.161190063 +0000
-+++ patches-4.19.0-rc4/08-memlogd-logger.patch	2024-08-02 18:55:49.124819209 +0000
+--- patches-4.15.0/08-memlogd-logger.patch	2024-08-02 22:15:41.256805040 +0000
++++ patches-4.19.0-rc4/08-memlogd-logger.patch	2024-08-02 22:12:24.493939541 +0000
 @@ -155,7 +155,7 @@ index dac1b8ddb8..a368fe6ba0 100644
       if (rc) return rc;
   
@@ -60,49 +60,20 @@ diff -uprN patches-4.15.0/08-memlogd-logger.patch patches-4.19.0-rc4/08-memlogd-
 +     CHK_SYSCALL(nullfd = open("/dev/null", O_RDONLY));
 \ No newline at end of file
 diff -uprN patches-4.15.0/10-bridge-helper-support.patch patches-4.19.0-rc4/10-bridge-helper-support.patch
---- patches-4.15.0/10-bridge-helper-support.patch	2024-07-29 22:10:42.162190044 +0000
-+++ patches-4.19.0-rc4/10-bridge-helper-support.patch	2024-08-02 18:55:49.037818244 +0000
+--- patches-4.15.0/10-bridge-helper-support.patch	2024-08-02 22:15:41.256805040 +0000
++++ patches-4.19.0-rc4/10-bridge-helper-support.patch	2024-08-02 22:12:24.390942300 +0000
 @@ -59,7 +59,7 @@
               fd = net_tap_init(tap, &vnet_hdr, i >= 1 ? "no" : script,
  -                              ifname, sizeof ifname, queues > 1, errp);
  +                              ifname, sizeof ifname, 
 -+			      tap->has_br ? tap->br : "bn1",
-++			      tap->br,
+++			      "bn1",
  +			      queues > 1, errp);
               if (fd == -1) {
                   return -1;
-diff -uprN patches-4.15.0/12-disable-Werror-to-build-under-gcc-11.2.patch patches-4.19.0-rc4/12-disable-Werror-to-build-under-gcc-11.2.patch
---- patches-4.15.0/12-disable-Werror-to-build-under-gcc-11.2.patch	1970-01-01 00:00:00.000000000 +0000
-+++ patches-4.19.0-rc4/12-disable-Werror-to-build-under-gcc-11.2.patch	2024-08-02 18:55:48.876816459 +0000
-@@ -0,0 +1,25 @@
-+From d3b8b8369c5d48d88ea9ec024cf2988833e1ccaa Mon Sep 17 00:00:00 2001
-+From: Petr Fedchenkov <giggsoff@gmail.com>
-+Date: Tue, 16 Aug 2022 15:53:35 +0300
-+Subject: [PATCH] disable Werror to build under gcc 11.2
-+
-+Signed-off-by: Petr Fedchenkov <giggsoff@gmail.com>
-+---
-+ tools/libs/libs.mk | 2 +-
-+ 1 file changed, 1 insertion(+), 1 deletion(-)
-+
-+diff --git a/tools/libs/libs.mk b/tools/libs/libs.mk
-+index 8115aa5..9ed4f5c 100644
-+--- a/tools/libs/libs.mk
-++++ b/tools/libs/libs.mk
-+@@ -14,7 +14,7 @@ MAJOR := $(shell $(XEN_ROOT)/version.sh $(XEN_ROOT)/xen/Makefile)
-+ endif
-+ MINOR ?= 0
-+ 
-+-CFLAGS   += -Wmissing-prototypes
-++CFLAGS   += -Werror -Wmissing-prototypes
-+ CFLAGS   += $(CFLAGS_xeninclude)
-+ CFLAGS   += $(foreach lib, $(USELIBS_$(LIBNAME)), $(CFLAGS_libxen$(lib)))
-+
-+--
-+2.34.1
 diff -uprN patches-4.15.0/13-qemu-Add-cpu-pin-and-cpumask-options.patch patches-4.19.0-rc4/13-qemu-Add-cpu-pin-and-cpumask-options.patch
---- patches-4.15.0/13-qemu-Add-cpu-pin-and-cpumask-options.patch	2024-07-29 22:10:42.163190024 +0000
-+++ patches-4.19.0-rc4/13-qemu-Add-cpu-pin-and-cpumask-options.patch	2024-08-02 18:55:48.901816736 +0000
+--- patches-4.15.0/13-qemu-Add-cpu-pin-and-cpumask-options.patch	2024-08-02 22:15:41.257805024 +0000
++++ patches-4.19.0-rc4/13-qemu-Add-cpu-pin-and-cpumask-options.patch	2024-08-02 22:12:24.246946158 +0000
 @@ -123,26 +123,27 @@ index 708583b..a33ee1e 100644
       "-k language     use keyboard layout (for example 'fr' for French)\n",
       QEMU_ARCH_ALL)
@@ -143,8 +114,8 @@ diff -uprN patches-4.15.0/13-qemu-Add-cpu-pin-and-cpumask-options.patch patches-
  
  base-commit: 9c55fdd5e54c5ea4bf238cee787f13a03eac1c86
 diff -uprN patches-4.15.0/14-qemu-Init-CPU-mask-per-VCPU.patch patches-4.19.0-rc4/14-qemu-Init-CPU-mask-per-VCPU.patch
---- patches-4.15.0/14-qemu-Init-CPU-mask-per-VCPU.patch	2024-07-29 22:10:42.163190024 +0000
-+++ patches-4.19.0-rc4/14-qemu-Init-CPU-mask-per-VCPU.patch	2024-08-02 18:55:48.928817036 +0000
+--- patches-4.15.0/14-qemu-Init-CPU-mask-per-VCPU.patch	2024-08-02 22:15:41.257805024 +0000
++++ patches-4.19.0-rc4/14-qemu-Init-CPU-mask-per-VCPU.patch	2024-08-02 22:12:24.275945381 +0000
 @@ -24,26 +24,29 @@ index b06f13e..a4b4f11 100644
       AccelState *accelerator;
       CPUArchIdList *possible_cpus;
@@ -320,8 +291,8 @@ diff -uprN patches-4.15.0/14-qemu-Init-CPU-mask-per-VCPU.patch patches-4.19.0-rc
  2.35.1
  
 diff -uprN patches-4.15.0/15-qemu-Set-the-affinity-of-QEMU-threads-according-to-t.patch patches-4.19.0-rc4/15-qemu-Set-the-affinity-of-QEMU-threads-according-to-t.patch
---- patches-4.15.0/15-qemu-Set-the-affinity-of-QEMU-threads-according-to-t.patch	2024-07-29 22:10:42.163190024 +0000
-+++ patches-4.19.0-rc4/15-qemu-Set-the-affinity-of-QEMU-threads-according-to-t.patch	2024-08-02 18:55:49.059818488 +0000
+--- patches-4.15.0/15-qemu-Set-the-affinity-of-QEMU-threads-according-to-t.patch	2024-08-02 22:15:41.257805024 +0000
++++ patches-4.19.0-rc4/15-qemu-Set-the-affinity-of-QEMU-threads-according-to-t.patch	2024-08-02 22:12:24.415941631 +0000
 @@ -11,91 +11,23 @@ Signed-off-by: Nikolay Martyanov <ohmspe
   tools/qemu-xen/util/qemu-thread-posix.c | 37 +++++++++++++++++++++++++
   3 files changed, 45 insertions(+)
@@ -423,8 +394,8 @@ diff -uprN patches-4.15.0/15-qemu-Set-the-affinity-of-QEMU-threads-according-to-
 -2.35.1
 -
 diff -uprN patches-4.15.0/x86_64/05-xen-spoofing.patch patches-4.19.0-rc4/x86_64/05-xen-spoofing.patch
---- patches-4.15.0/x86_64/05-xen-spoofing.patch	2024-07-29 22:10:42.164190005 +0000
-+++ patches-4.19.0-rc4/x86_64/05-xen-spoofing.patch	2024-08-02 18:55:49.171819730 +0000
+--- patches-4.15.0/x86_64/05-xen-spoofing.patch	2024-08-02 22:15:41.257805024 +0000
++++ patches-4.19.0-rc4/x86_64/05-xen-spoofing.patch	2024-08-02 22:12:24.547938095 +0000
 @@ -153,19 +153,7 @@ index 97499a0..b500095 100644
           break;
   
@@ -494,8 +465,8 @@ diff -uprN patches-4.15.0/x86_64/05-xen-spoofing.patch patches-4.19.0-rc4/x86_64
 +     bool bug_x2apic_ldr_vcpu_id;
 +
 diff -uprN patches-4.15.0/x86_64/07-patch-seabios.patch patches-4.19.0-rc4/x86_64/07-patch-seabios.patch
---- patches-4.15.0/x86_64/07-patch-seabios.patch	2024-07-29 22:10:42.165189986 +0000
-+++ patches-4.19.0-rc4/x86_64/07-patch-seabios.patch	2024-08-02 18:55:49.215820218 +0000
+--- patches-4.15.0/x86_64/07-patch-seabios.patch	2024-08-02 22:15:41.258805008 +0000
++++ patches-4.19.0-rc4/x86_64/07-patch-seabios.patch	2024-08-02 22:12:24.598936729 +0000
 @@ -1,10 +1,12 @@
 +diff --git a/tools/firmware/Makefile b/tools/firmware/Makefile
 +index 345037b..b70255e 100644
@@ -513,8 +484,8 @@ diff -uprN patches-4.15.0/x86_64/07-patch-seabios.patch patches-4.19.0-rc4/x86_6
 + 	echo '$(SEABIOS_UPSTREAM_REVISION)' > seabios-dir/.version
 \ No newline at end of file
 diff -uprN patches-4.15.0/x86_64/08-Revert__Revert__vfio_pci-quirks_c__Disable_stolen_memory_for_igd_VFIO__.patch patches-4.19.0-rc4/x86_64/08-Revert__Revert__vfio_pci-quirks_c__Disable_stolen_memory_for_igd_VFIO__.patch
---- patches-4.15.0/x86_64/08-Revert__Revert__vfio_pci-quirks_c__Disable_stolen_memory_for_igd_VFIO__.patch	2024-07-29 22:10:42.165189986 +0000
-+++ patches-4.19.0-rc4/x86_64/08-Revert__Revert__vfio_pci-quirks_c__Disable_stolen_memory_for_igd_VFIO__.patch	2024-08-02 18:55:49.150819497 +0000
+--- patches-4.15.0/x86_64/08-Revert__Revert__vfio_pci-quirks_c__Disable_stolen_memory_for_igd_VFIO__.patch	2024-08-02 22:15:41.258805008 +0000
++++ patches-4.19.0-rc4/x86_64/08-Revert__Revert__vfio_pci-quirks_c__Disable_stolen_memory_for_igd_VFIO__.patch	2024-08-02 22:12:24.522938764 +0000
 @@ -1,75 +1,40 @@
 -From 9eb4883e57224db64588d724d5764cdccb164c7d Mon Sep 17 00:00:00 2001
 -From: Petr Fedchenkov <giggsoff@gmail.com>
