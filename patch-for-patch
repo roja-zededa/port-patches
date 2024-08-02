@@ -1,0 +1,674 @@
+diff -uprN patches-4.15.0/08-memlogd-logger.patch patches-4.19.0-rc4/08-memlogd-logger.patch
+--- patches-4.15.0/08-memlogd-logger.patch	2024-07-29 22:10:42.161190063 +0000
++++ patches-4.19.0-rc4/08-memlogd-logger.patch	2024-08-02 18:55:49.124819209 +0000
+@@ -155,7 +155,7 @@ index dac1b8ddb8..a368fe6ba0 100644
+      if (rc) return rc;
+  
+ diff --git a/tools/xl/xl_utils.c b/tools/xl/xl_utils.c
+-index 4503ac7ea0..1f646c6400 100644
++index b0d23b2..949d281 100644
+ --- a/tools/xl/xl_utils.c
+ +++ b/tools/xl/xl_utils.c
+ @@ -27,6 +27,8 @@
+@@ -164,10 +164,10 @@ index 4503ac7ea0..1f646c6400 100644
+  
+ +#include "../libs/light/xentoollog_external.h"
+ +
+- void dolog(const char *file, int line, const char *func, char *fmt, ...)
+- {
+-     va_list ap;
+-@@ -264,14 +266,17 @@ int do_daemonize(char *name, const char *pidfile)
++ #ifndef O_CLOEXEC
++ #define O_CLOEXEC 0
++ #endif
++@@ -268,14 +270,16 @@ int do_daemonize(const char *name, const char *pidfile)
+  
+      postfork();
+  
+@@ -175,20 +175,19 @@ index 4503ac7ea0..1f646c6400 100644
+ -    if (ret) {
+ -        LOG("failed to open logfile %s: %s",fullname,strerror(errno));
+ -        exit(-1);
+--    }
+-+    logfile = xtl_logger_create_external(name);
+++    logfile = xtl_logger_create_external((char *)name);
+ +    if (logfile < 0) {
+-+        ret = libxl_create_logfile(ctx, name, &fullname);
+-+        if (ret) {
+-+            LOG("failed to open logfile %s: %s",fullname,strerror(errno));
+-+            exit(-1);
+-+        }
+- 
+--    CHK_SYSCALL(logfile = open(fullname, O_WRONLY|O_CREAT|O_APPEND, 0644));
+++           ret = libxl_create_logfile(ctx, name, &fullname);
+++           if (ret) {
+++               LOG("failed to open logfile %s: %s",fullname,strerror(errno));
+++               exit(-1);
+++           }
+++          CHK_SYSCALL(logfile = open(fullname, O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0644));
+++          free(fullname);
++     }
++-
++-    CHK_SYSCALL(logfile = open(fullname, O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0644));
+ -    free(fullname);
+-+        CHK_SYSCALL(logfile = open(fullname, O_WRONLY|O_CREAT|O_APPEND, 0644));
+-+        free(fullname);
+-+    }
+      assert(logfile >= 3);
+  
+-     CHK_SYSCALL(nullfd = open("/dev/null", O_RDONLY));
++     CHK_SYSCALL(nullfd = open("/dev/null", O_RDONLY));
+\ No newline at end of file
+diff -uprN patches-4.15.0/10-bridge-helper-support.patch patches-4.19.0-rc4/10-bridge-helper-support.patch
+--- patches-4.15.0/10-bridge-helper-support.patch	2024-07-29 22:10:42.162190044 +0000
++++ patches-4.19.0-rc4/10-bridge-helper-support.patch	2024-08-02 18:55:49.037818244 +0000
+@@ -59,7 +59,7 @@
+              fd = net_tap_init(tap, &vnet_hdr, i >= 1 ? "no" : script,
+ -                              ifname, sizeof ifname, queues > 1, errp);
+ +                              ifname, sizeof ifname, 
+-+			      tap->has_br ? tap->br : "bn1",
+++			      tap->br,
+ +			      queues > 1, errp);
+              if (fd == -1) {
+                  return -1;
+diff -uprN patches-4.15.0/12-disable-Werror-to-build-under-gcc-11.2.patch patches-4.19.0-rc4/12-disable-Werror-to-build-under-gcc-11.2.patch
+--- patches-4.15.0/12-disable-Werror-to-build-under-gcc-11.2.patch	1970-01-01 00:00:00.000000000 +0000
++++ patches-4.19.0-rc4/12-disable-Werror-to-build-under-gcc-11.2.patch	2024-08-02 18:55:48.876816459 +0000
+@@ -0,0 +1,25 @@
++From d3b8b8369c5d48d88ea9ec024cf2988833e1ccaa Mon Sep 17 00:00:00 2001
++From: Petr Fedchenkov <giggsoff@gmail.com>
++Date: Tue, 16 Aug 2022 15:53:35 +0300
++Subject: [PATCH] disable Werror to build under gcc 11.2
++
++Signed-off-by: Petr Fedchenkov <giggsoff@gmail.com>
++---
++ tools/libs/libs.mk | 2 +-
++ 1 file changed, 1 insertion(+), 1 deletion(-)
++
++diff --git a/tools/libs/libs.mk b/tools/libs/libs.mk
++index 8115aa5..9ed4f5c 100644
++--- a/tools/libs/libs.mk
+++++ b/tools/libs/libs.mk
++@@ -14,7 +14,7 @@ MAJOR := $(shell $(XEN_ROOT)/version.sh $(XEN_ROOT)/xen/Makefile)
++ endif
++ MINOR ?= 0
++ 
++-CFLAGS   += -Wmissing-prototypes
+++CFLAGS   += -Werror -Wmissing-prototypes
++ CFLAGS   += $(CFLAGS_xeninclude)
++ CFLAGS   += $(foreach lib, $(USELIBS_$(LIBNAME)), $(CFLAGS_libxen$(lib)))
++
++--
++2.34.1
+diff -uprN patches-4.15.0/13-qemu-Add-cpu-pin-and-cpumask-options.patch patches-4.19.0-rc4/13-qemu-Add-cpu-pin-and-cpumask-options.patch
+--- patches-4.15.0/13-qemu-Add-cpu-pin-and-cpumask-options.patch	2024-07-29 22:10:42.163190024 +0000
++++ patches-4.19.0-rc4/13-qemu-Add-cpu-pin-and-cpumask-options.patch	2024-08-02 18:55:48.901816736 +0000
+@@ -123,26 +123,27 @@ index 708583b..a33ee1e 100644
+      "-k language     use keyboard layout (for example 'fr' for French)\n",
+      QEMU_ARCH_ALL)
+ diff --git a/tools/qemu-xen/softmmu/vl.c b/tools/qemu-xen/softmmu/vl.c
+-index 4eb9d1f..c7c8abc 100644
++index ea20b23..59ff7c7 100644
+ --- a/tools/qemu-xen/softmmu/vl.c
+ +++ b/tools/qemu-xen/softmmu/vl.c
+-@@ -2868,6 +2868,7 @@ void qemu_init(int argc, char **argv, char **envp)
+-     BlockdevOptionsQueue bdo_queue = QSIMPLEQ_HEAD_INITIALIZER(bdo_queue);
+-     QemuPluginList plugin_list = QTAILQ_HEAD_INITIALIZER(plugin_list);
+-     int mem_prealloc = 0; /* force preallocation of physical target memory */
+-+    bool cpu_pin = false;
+- 
+-     os_set_line_buffering();
+- 
+-@@ -3638,6 +3639,9 @@ void qemu_init(int argc, char **argv, char **envp)
++@@ -173,6 +173,7 @@ static QemuPluginList plugin_list = QTAILQ_HEAD_INITIALIZER(plugin_list);
++ static BlockdevOptionsQueue bdo_queue = QSIMPLEQ_HEAD_INITIALIZER(bdo_queue);
++ static bool nographic = false;
++ static int mem_prealloc; /* force preallocation of physical target memory */
+++static bool cpu_pin = false;
++ static const char *vga_model = NULL;
++ static DisplayOptions dpy;
++ static int num_serial_hds;
++@@ -3360,6 +3361,10 @@ void qemu_init(int argc, char **argv)
+              case QEMU_OPTION_nodefaults:
+                  has_defaults = 0;
+                  break;
+ +	    case QEMU_OPTION_cpu_pin:
+ +		cpu_pin = true;
+ +		break;
+++
+              case QEMU_OPTION_xen_domid:
+-                 if (!(xen_available())) {
++                 if (!(accel_find("xen")) && !(accel_find("kvm"))) {
+                      error_report("Option not supported for this target");
+ 
+ base-commit: 9c55fdd5e54c5ea4bf238cee787f13a03eac1c86
+diff -uprN patches-4.15.0/14-qemu-Init-CPU-mask-per-VCPU.patch patches-4.19.0-rc4/14-qemu-Init-CPU-mask-per-VCPU.patch
+--- patches-4.15.0/14-qemu-Init-CPU-mask-per-VCPU.patch	2024-07-29 22:10:42.163190024 +0000
++++ patches-4.19.0-rc4/14-qemu-Init-CPU-mask-per-VCPU.patch	2024-08-02 18:55:48.928817036 +0000
+@@ -24,26 +24,29 @@ index b06f13e..a4b4f11 100644
+      AccelState *accelerator;
+      CPUArchIdList *possible_cpus;
+ diff --git a/tools/qemu-xen/include/hw/core/cpu.h b/tools/qemu-xen/include/hw/core/cpu.h
+-index 8f14573..628b31a 100644
++index 397fd3a..1bf357b 100644
+ --- a/tools/qemu-xen/include/hw/core/cpu.h
+ +++ b/tools/qemu-xen/include/hw/core/cpu.h
+-@@ -374,6 +374,8 @@ struct CPUState {
++@@ -344,6 +344,9 @@ struct CPUState {
+      bool created;
+      bool stop;
+      bool stopped;
+ +    bool pinned;
+ +    uint64_t cpumask;
+-     bool unplug;
+-     bool crash_occurred;
+-     bool exit_request;
+++
++ 
++     /* Should CPU start in powered-off state? */
++     bool start_powered_off;
++
+ diff --git a/tools/qemu-xen/softmmu/cpus.c b/tools/qemu-xen/softmmu/cpus.c
+-index a802e89..da56052 100644
++index 9cbc817..2867325 100644
+ --- a/tools/qemu-xen/softmmu/cpus.c
+ +++ b/tools/qemu-xen/softmmu/cpus.c
+-@@ -2011,6 +2011,23 @@ static void qemu_dummy_start_vcpu(CPUState *cpu)
+-                        QEMU_THREAD_JOINABLE);
+- }
++@@ -72,6 +72,25 @@ static QemuMutex qemu_global_mutex;
++  */
++ static const AccelOpsClass *cpus_accel;
+  
+++
+ +static inline void cpumask_clear_bit(uint64_t *mask, uint8_t bit)
+ +{
+ +    *mask &= ~(1ul << bit);
+@@ -52,7 +55,7 @@ index a802e89..da56052 100644
+ +static inline long cpumask_get_min_bit(uint64_t mask)
+ +{
+ +  return __builtin_ffsll(mask) - 1;
+-+}
+++  }
+ +
+ +static long pick_pcpu(uint64_t *cpumask)
+ +{
+@@ -61,13 +64,14 @@ index a802e89..da56052 100644
+ +    return ret;
+ +}
+ +
+- void qemu_init_vcpu(CPUState *cpu)
+++
++ bool cpu_is_stopped(CPUState *cpu)
+  {
+-     MachineState *ms = MACHINE(qdev_get_machine());
+-@@ -2019,6 +2036,20 @@ void qemu_init_vcpu(CPUState *cpu)
+-     cpu->nr_threads =  ms->smp.threads;
++     return cpu->stopped || !runstate_is_running();
++@@ -635,6 +654,21 @@ void qemu_init_vcpu(CPUState *cpu)
+      cpu->stopped = true;
+      cpu->random_seed = qemu_guest_random_seed_thread_part1();
++ 
+ +    cpu->pinned = ms->cpu_pin;
+ +    static uint64_t vm_cpumask;
+ +    uint64_t vcpu_cpumask;
+@@ -82,15 +86,18 @@ index a802e89..da56052 100644
+ +    }
+ +
+ +    cpu->cpumask = vcpu_cpumask;
+- 
+++
+      if (!cpu->as) {
+          /* If the target cpu hasn't set up any address spaces itself,
++          * give it the default one.
++
++         
+ diff --git a/tools/qemu-xen/softmmu/vl.c b/tools/qemu-xen/softmmu/vl.c
+-index c7c8abc..f514f59 100644
++index ea20b23..98287f4 100644
+ --- a/tools/qemu-xen/softmmu/vl.c
+ +++ b/tools/qemu-xen/softmmu/vl.c
+-@@ -2829,6 +2829,68 @@ static void create_default_memdev(MachineState *ms, const char *path)
+-                             &error_fatal);
++@@ -2631,6 +2631,68 @@ void qmp_x_exit_preconfig(Error **errp)
++     }
+  }
+  
+ +static inline void cpumask_set_bit(uint64_t *mask, uint8_t bit)
+@@ -107,15 +114,15 @@ index c7c8abc..f514f59 100644
+ +    const char *cur = cpumask_str;
+ +    bool range = false;
+ +
+-+    assert(cpumask_str != NULL);
+++   assert(cpumask_str != NULL);
+ +
+ +    if (strcmp(cpumask_str, "") == 0)
+ +        return 0;
+ +
+ +    if (cpumask_str[0] == '-') {
+-+        warn_report("The CPU mask cannot start with -\n");
+++       warn_report("The CPU mask cannot start with -\n");
+ +        return 0;
+-+    }
+++   }
+ +
+ +    uint8_t last_set;
+ +    while (*cur) {
+@@ -124,7 +131,7 @@ index c7c8abc..f514f59 100644
+ +        if (*cur == '-') {
+ +            cur++;
+ +            range = true;
+-+            continue;
+++           continue;
+ +        }
+ +        if (*cur == ',') {
+ +            cur++;
+@@ -138,7 +145,7 @@ index c7c8abc..f514f59 100644
+ +        }
+ +        if (end != cur) {
+ +            if (num == 0 || num > sizeof(cpumask) * BITS_PER_BYTE)
+-+                return 0;
+++               return 0;
+ +            if (range) {
+ +                range = false;
+ +                for (int i = last_set + 1; i < num; i++)
+@@ -155,14 +162,24 @@ index c7c8abc..f514f59 100644
+ +    return cpumask;
+ +}
+ +
+- void qemu_init(int argc, char **argv, char **envp)
++ void qemu_init(int argc, char **argv)
+  {
+-     int i;
+-@@ -4306,6 +4368,19 @@ void qemu_init(int argc, char **argv, char **envp)
+- 
+-     current_machine->boot_order = boot_order;
+- 
+-+    current_machine->cpumask = 0;
++     QemuOpts *opts;
++@@ -3357,6 +3419,7 @@ void qemu_init(int argc, char **argv)
++             case QEMU_OPTION_only_migratable:
++                 only_migratable = 1;
++                 break;
+++	    	
++             case QEMU_OPTION_nodefaults:
++                 has_defaults = 0;
++                 break;
++@@ -3596,6 +3659,21 @@ void qemu_init(int argc, char **argv)
++     if (cpu_option) {
++         current_machine->cpu_type = parse_cpu_option(cpu_option);
++     }
+++
+++
+++        current_machine->cpumask = 0;
+ +    if (current_machine->cpumask_str) {
+ +        current_machine->cpumask = cpumask_parse(current_machine->cpumask_str);
+ +        if (!current_machine->cpumask) {
+@@ -175,9 +192,11 @@ index c7c8abc..f514f59 100644
+ +        }
+ +    }
+ +
+-     /* parse features once if machine provides default cpu_type */
+-     current_machine->cpu_type = machine_class->default_cpu_type;
+-     if (cpu_option) {
++     /* NB: for machine none cpu_type could STILL be NULL here! */
++ 
++     qemu_resolve_machine_memdev();
++
++
+ -- 
+ 2.35.1
+ 
+diff -uprN patches-4.15.0/15-qemu-Set-the-affinity-of-QEMU-threads-according-to-t.patch patches-4.19.0-rc4/15-qemu-Set-the-affinity-of-QEMU-threads-according-to-t.patch
+--- patches-4.15.0/15-qemu-Set-the-affinity-of-QEMU-threads-according-to-t.patch	2024-07-29 22:10:42.163190024 +0000
++++ patches-4.19.0-rc4/15-qemu-Set-the-affinity-of-QEMU-threads-according-to-t.patch	2024-08-02 18:55:49.059818488 +0000
+@@ -11,91 +11,23 @@ Signed-off-by: Nikolay Martyanov <ohmspe
+  tools/qemu-xen/util/qemu-thread-posix.c | 37 +++++++++++++++++++++++++
+  3 files changed, 45 insertions(+)
+ 
+-diff --git a/tools/qemu-xen/include/qemu/thread.h b/tools/qemu-xen/include/qemu/thread.h
+-index 4baf4d1..3d1a76e 100644
+---- a/tools/qemu-xen/include/qemu/thread.h
+-+++ b/tools/qemu-xen/include/qemu/thread.h
+-@@ -174,6 +174,8 @@ void qemu_event_destroy(QemuEvent *ev);
+- void qemu_thread_create(QemuThread *thread, const char *name,
+-                         void *(*start_routine)(void *),
+-                         void *arg, int mode);
+-+/* TODO implemented for POSIX only by now */
+-+void qemu_thread_set_affinity(QemuThread *thread, unsigned int cpumask);
+- void *qemu_thread_join(QemuThread *thread);
+- void qemu_thread_get_self(QemuThread *thread);
+- bool qemu_thread_is_self(QemuThread *thread);
++
+ diff --git a/tools/qemu-xen/softmmu/cpus.c b/tools/qemu-xen/softmmu/cpus.c
+-index da56052..000df00 100644
++index 9cbc817..ab498e4 100644
+ --- a/tools/qemu-xen/softmmu/cpus.c
+ +++ b/tools/qemu-xen/softmmu/cpus.c
+-@@ -2073,6 +2073,12 @@ void qemu_init_vcpu(CPUState *cpu)
+-         qemu_dummy_start_vcpu(cpu);
+-     }
++@@ -647,6 +647,14 @@ void qemu_init_vcpu(CPUState *cpu)
++     g_assert(cpus_accel != NULL && cpus_accel->create_vcpu_thread != NULL);
++     cpus_accel->create_vcpu_thread(cpu);
+  
+++
+++ 
+ +    if(cpu_can_run(cpu))
+ +        warn_report("Change a CPU affinity after the CPU may have been running for a while\n");
+ +
+ +    if (cpu->cpumask)
+-+        qemu_thread_set_affinity(cpu->thread, cpu->cpumask);
+++        qemu_thread_set_affinity(cpu->thread, cpu->cpumask, 0);
+ +
+      while (!cpu->created) {
+          qemu_cond_wait(&qemu_cpu_cond, &qemu_global_mutex);
+      }
+-diff --git a/tools/qemu-xen/util/qemu-thread-posix.c b/tools/qemu-xen/util/qemu-thread-posix.c
+-index b4c2359..c404ff4 100644
+---- a/tools/qemu-xen/util/qemu-thread-posix.c
+-+++ b/tools/qemu-xen/util/qemu-thread-posix.c
+-@@ -17,6 +17,8 @@
+- #include "qemu-thread-common.h"
+- #include "qemu/tsan.h"
+- 
+-+#include "hw/core/cpu.h"
+-+
+- static bool name_threads;
+- 
+- void qemu_thread_naming(bool enable)
+-@@ -523,6 +525,41 @@ static void *qemu_thread_start(void *args)
+-     return r;
+- }
+- 
+-+static inline unsigned get_max_cpu_in_mask(unsigned int cpumask)
+-+{
+-+    assert(cpumask != 0);
+-+    return (sizeof (cpumask) * BITS_PER_BYTE) - __builtin_clz (cpumask) - 1;
+-+}
+-+
+-+void qemu_thread_set_affinity(QemuThread *thread, unsigned int cpumask)
+-+{
+-+    int err;
+-+    size_t cpu_set_size;
+-+    cpu_set_t cpu_set;
+-+    unsigned int max_pcpu;
+-+    unsigned int cpumask_tmp = cpumask;
+-+
+-+    CPU_ZERO(&cpu_set);
+-+
+-+    /* set the CPU_SET according to mask */
+-+    int cur_pcpu = 0;
+-+    while(cpumask_tmp) {
+-+        if (cpumask_tmp & 1)
+-+            CPU_SET (cur_pcpu, &cpu_set);
+-+        cpumask_tmp >>= 1;
+-+        cur_pcpu += 1;
+-+    }
+-+
+-+    /* Count the size of the necessary CPU_SET */
+-+    max_pcpu = get_max_cpu_in_mask(cpumask);
+-+    cpu_set_size = DIV_ROUND_UP(max_pcpu + 1, BITS_PER_BYTE);
+-+
+-+    err = pthread_setaffinity_np(thread->thread, cpu_set_size, &cpu_set);
+-+
+-+    if (err)
+-+        error_exit (err, __func__);
+-+}
+-+
+- void qemu_thread_create(QemuThread *thread, const char *name,
+-                        void *(*start_routine)(void*),
+-                        void *arg, int mode)
+--- 
+-2.35.1
+-
+diff -uprN patches-4.15.0/x86_64/05-xen-spoofing.patch patches-4.19.0-rc4/x86_64/05-xen-spoofing.patch
+--- patches-4.15.0/x86_64/05-xen-spoofing.patch	2024-07-29 22:10:42.164190005 +0000
++++ patches-4.19.0-rc4/x86_64/05-xen-spoofing.patch	2024-08-02 18:55:49.171819730 +0000
+@@ -153,19 +153,7 @@ index 97499a0..b500095 100644
+          break;
+  
+      case 1:
+-diff --git a/xen/include/asm-x86/hvm/domain.h b/xen/include/asm-x86/hvm/domain.h
+-index bcc5621..a506710 100644
+---- a/xen/include/asm-x86/hvm/domain.h
+-+++ b/xen/include/asm-x86/hvm/domain.h
+-@@ -159,6 +159,8 @@ struct hvm_domain {
+-     bool_t                 mem_sharing_enabled;
+-     bool_t                 qemu_mapcache_invalidate;
+-     bool_t                 is_s3_suspended;
+-+    bool_t                 spoof_xen;
+-+    bool_t                 spoof_viridian;
+- 
+-     /*
+-      * TSC value that VCPUs use to calculate their tsc_offset value.
++
+ diff --git a/xen/include/public/arch-x86/cpuid.h b/xen/include/public/arch-x86/cpuid.h
+ index ce46305..7e63c55 100644
+ --- a/xen/include/public/arch-x86/cpuid.h
+@@ -182,21 +170,21 @@ index ce46305..7e63c55 100644
+   * Leaf 2 (0x40000x01)
+   * EAX[31:16]: Xen major version.
+ diff --git a/xen/include/public/hvm/params.h b/xen/include/public/hvm/params.h
+-index 36832e4..2be4178 100644
++index 99c40b4..5bec661 100644
+ --- a/xen/include/public/hvm/params.h
+ +++ b/xen/include/public/hvm/params.h
+-@@ -302,7 +302,10 @@
++@@ -290,7 +290,9 @@
+  #define HVM_PARAM_MCA_CAP 38
+  #define XEN_HVM_MCA_CAP_LMCE   (xen_mk_ullong(1) << 0)
+  #define XEN_HVM_MCA_CAP_MASK   XEN_HVM_MCA_CAP_LMCE
+-+#define HVM_PARAM_SPOOF_XEN    39
+++#define HVM_PARAM_SPOOF_XEN 39
+  
+ -#define HVM_NR_PARAMS 39
+-+#define HVM_PARAM_SPOOF_VIRIDIAN    40
+-+
+-+#define HVM_NR_PARAMS          41
+++#define HVM_PARAM_SPOOF_VIRIDIAN 40
+++#define HVM_NR_PARAMS 41
+  
+  #endif /* __XEN_PUBLIC_HVM_PARAMS_H__ */
++
+ diff --git a/tools/xl/xl_parse.c b/tools/xl/xl_parse.c
+ index 36832e4..2be4178 100644
+ --- a/tools/xl/xl_parse.c
+@@ -212,3 +200,18 @@ index 36832e4..2be4178 100644
+          switch (xlu_cfg_get_list(config, "viridian",
+                                   &viridian, &num_viridian, 1))
+          {
++
++diff --git a/xen/arch/x86/include/asm/hvm/domain.h b/xen/arch/x86/include/asm/hvm/domain.h
++index dd9d837..9f2e863 100644
++--- a/xen/arch/x86/include/asm/hvm/domain.h
+++++ b/xen/arch/x86/include/asm/hvm/domain.h
++@@ -106,6 +106,9 @@ struct hvm_domain {
++ 
++     bool                   is_s3_suspended;
++ 
+++    bool                  spoof_xen;
+++    bool                  spoof_virdian;
+++
++     /* Compatibility setting for a bug in x2APIC LDR */
++     bool bug_x2apic_ldr_vcpu_id;
++
+diff -uprN patches-4.15.0/x86_64/07-patch-seabios.patch patches-4.19.0-rc4/x86_64/07-patch-seabios.patch
+--- patches-4.15.0/x86_64/07-patch-seabios.patch	2024-07-29 22:10:42.165189986 +0000
++++ patches-4.19.0-rc4/x86_64/07-patch-seabios.patch	2024-08-02 18:55:49.215820218 +0000
+@@ -1,10 +1,12 @@
++diff --git a/tools/firmware/Makefile b/tools/firmware/Makefile
++index 345037b..b70255e 100644
+ --- a/tools/firmware/Makefile
+ +++ b/tools/firmware/Makefile
+-@@ -26,6 +26,7 @@
++@@ -26,6 +26,7 @@ ovmf-dir:
+  seabios-dir:
+  	GIT=$(GIT) $(XEN_ROOT)/scripts/git-checkout.sh $(SEABIOS_UPSTREAM_URL) $(SEABIOS_UPSTREAM_REVISION) seabios-dir
+  	cp seabios-config seabios-dir/.config;
+ +	cd seabios-dir && patch -p1 < /patches/x86_64/patch.seabios
+  	$(MAKE) -C seabios-dir olddefconfig CC=$(SEABIOSCC) LD=$(SEABIOSLD)
+  	rm -f seabios-dir/.version
+- 	echo '$(SEABIOS_UPSTREAM_REVISION)' > seabios-dir/.version
++ 	echo '$(SEABIOS_UPSTREAM_REVISION)' > seabios-dir/.version
+\ No newline at end of file
+diff -uprN patches-4.15.0/x86_64/08-Revert__Revert__vfio_pci-quirks_c__Disable_stolen_memory_for_igd_VFIO__.patch patches-4.19.0-rc4/x86_64/08-Revert__Revert__vfio_pci-quirks_c__Disable_stolen_memory_for_igd_VFIO__.patch
+--- patches-4.15.0/x86_64/08-Revert__Revert__vfio_pci-quirks_c__Disable_stolen_memory_for_igd_VFIO__.patch	2024-07-29 22:10:42.165189986 +0000
++++ patches-4.19.0-rc4/x86_64/08-Revert__Revert__vfio_pci-quirks_c__Disable_stolen_memory_for_igd_VFIO__.patch	2024-08-02 18:55:49.150819497 +0000
+@@ -1,75 +1,40 @@
+-From 9eb4883e57224db64588d724d5764cdccb164c7d Mon Sep 17 00:00:00 2001
+-From: Petr Fedchenkov <giggsoff@gmail.com>
+-Date: Mon, 11 Oct 2021 17:30:15 +0300
+-Subject: [PATCH] Revert "Revert "vfio/pci-quirks.c: Disable stolen memory for
+- igd VFIO"" and adopts it to the new qemu with moved vfio_probe_igd_bar4_quirk
+- into igd.c.
+-
+-This reverts commit 93587e3af3a259deac89c12863d93653d69d22b8.
+----
+- tools/qemu-xen/hw/vfio/igd.c | 64 ++++++++++++++++++++++++++++++---------------------
+- 1 file changed, 38 insertions(+), 26 deletions(-)
+-
+ diff --git a/tools/qemu-xen/hw/vfio/igd.c b/tools/qemu-xen/hw/vfio/igd.c
+-index 64e332746b..573cd53803 100644
++index b31ee79..e85d26a 100644
+ --- a/tools/qemu-xen/hw/vfio/igd.c
+ +++ b/tools/qemu-xen/hw/vfio/igd.c
+-@@ -377,14 +377,45 @@ void vfio_probe_igd_bar4_quirk(VFIOPCIDevice *vdev, int nr)
++@@ -252,7 +252,6 @@ static int vfio_igd_gtt_max(VFIOPCIDevice *vdev)
++     uint32_t gmch = vfio_pci_read_config(&vdev->pdev, IGD_GMCH, sizeof(gmch));
++     int ggms, gen = igd_gen(vdev);
++ 
++-    gmch = vfio_pci_read_config(&vdev->pdev, IGD_GMCH, sizeof(gmch));
++     ggms = (gmch >> (gen < 8 ? 8 : 6)) & 0x3;
++     if (gen > 6) {
++         ggms = 1 << ggms;
++@@ -378,16 +377,11 @@ void vfio_probe_igd_bar4_quirk(VFIOPCIDevice *vdev, int nr)
+      uint16_t cmd_orig, cmd;
+      Error *err = NULL;
+-
+-+    /* This must be an Intel VGA device. */
+-+    if (!vfio_pci_is(vdev, PCI_VENDOR_ID_INTEL, PCI_ANY_ID) ||
+-+        !vfio_is_vga(vdev) || nr != 4 ) {
+-+        return;
+-+    }
+-+
+-     /*
++ 
++-    /*
+ -     * This must be an Intel VGA device at address 00:02.0 for us to even
+ -     * consider enabling legacy mode.  The vBIOS has dependencies on the
+ -     * PCI bus address.
+-+     * IGD is not a standard, they like to change their specs often.  We
+-+     * only attempt to support back to SandBridge and we hope that newer
+-+     * devices maintain compatibility with generation 8.
+-      */
+--    if (!vfio_pci_is(vdev, PCI_VENDOR_ID_INTEL, PCI_ANY_ID) ||
++-     */
+++   
++     if (!vfio_pci_is(vdev, PCI_VENDOR_ID_INTEL, PCI_ANY_ID) ||
+ -        !vfio_is_vga(vdev) || nr != 4 ||
+ -        &vdev->pdev != pci_find_device(pci_device_root_bus(&vdev->pdev),
+-+    gen = igd_gen(vdev);
+-+    if (gen != 6 && gen != 8) {
+-+        error_report("IGD device %s is unsupported by IGD quirks, "
+-+                     "try SandyBridge or newer", vdev->vbasedev.name);
+-+        return;
+-+    }
+-+
+-+    /*
+-+     * Regardless of running in UPT or legacy mode, the guest graphics
+-+     * driver may attempt to use stolen memory, however only legacy mode
+-+     * has BIOS support for reserving stolen memory in the guest VM.
+-+     * Emulate the GMCH register in all cases and zero out the stolen
+-+     * memory size here. Legacy mode may request allocation and re-write
+-+     * this below.
+-+     */
+-+    gmch = vfio_pci_read_config(&vdev->pdev, IGD_GMCH, 4);
+-+    gmch &= ~((gen < 8 ? 0x1f : 0xff) << (gen < 8 ? 3 : 8));
+-+
+-+    /* GMCH is read-only, emulated */
+-+    pci_set_long(vdev->pdev.config + IGD_GMCH, gmch);
+-+    pci_set_long(vdev->pdev.wmask + IGD_GMCH, 0);
+-+    pci_set_long(vdev->emulated_config_bits + IGD_GMCH, ~0);
++-                                       0, PCI_DEVFN(0x2, 0))) {
++-        return;
+++        !vfio_is_vga(vdev) || nr != 4 ) {
+ +
+-+    /*
+-+     * This must be at address 00:02.0 for us to even onsider enabling
+-+     * legacy mode.  The vBIOS has dependencies on the PCI bus address.
+-+     */
+-+    if (&vdev->pdev != pci_find_device(pci_device_root_bus(&vdev->pdev),
+-                                        0, PCI_DEVFN(0x2, 0))) {
+-         return;
+++     	    return;
+      }
+-@@ -403,18 +434,6 @@ void vfio_probe_igd_bar4_quirk(VFIOPCIDevice *vdev, int nr)
++ 
++     /*
++@@ -404,19 +398,7 @@ void vfio_probe_igd_bar4_quirk(VFIOPCIDevice *vdev, int nr)
+          return;
+      }
+-
++ 
+ -    /*
+ -     * IGD is not a standard, they like to change their specs often.  We
+ -     * only attempt to support back to SandBridge and we hope that newer
+@@ -82,36 +47,43 @@ index 64e332746b..573cd53803 100644
+ -        return;
+ -    }
+ -
+-     /*
++-    /*
+++     /*
+       * Most of what we're doing here is to enable the ROM to run, so if
+       * there's no ROM, there's no point in setting up this quirk.
+-@@ -470,8 +489,6 @@ void vfio_probe_igd_bar4_quirk(VFIOPCIDevice *vdev, int nr)
++      * NB. We only seem to get BIOS ROMs, so a UEFI VM would need CSM support.
++@@ -471,8 +453,7 @@ void vfio_probe_igd_bar4_quirk(VFIOPCIDevice *vdev, int nr)
+          goto out;
+      }
+-
++ 
+ -    gmch = vfio_pci_read_config(&vdev->pdev, IGD_GMCH, 4);
+ -
+++   
+      /*
+       * If IGD VGA Disable is clear (expected) and VGA is not already enabled,
+       * try to enable it.  Probably shouldn't be using legacy mode without VGA,
+-@@ -540,12 +557,12 @@ void vfio_probe_igd_bar4_quirk(VFIOPCIDevice *vdev, int nr)
++@@ -541,13 +522,14 @@ void vfio_probe_igd_bar4_quirk(VFIOPCIDevice *vdev, int nr)
+       * when IVD (IGD VGA Disable) is clear, but the claim is that it's unused,
+       * so let's not waste VM memory for it.
+       */
+ -    gmch &= ~((gen < 8 ? 0x1f : 0xff) << (gen < 8 ? 3 : 8));
+-
++-
+++   
+      if (vdev->igd_gms) {
+          if (vdev->igd_gms <= 0x10) {
+              gms_mb = vdev->igd_gms * 32;
+              gmch |= vdev->igd_gms << (gen < 8 ? 3 : 8);
++-        } else {
+ +            pci_set_long(vdev->pdev.config + IGD_GMCH, gmch);
+-         } else {
+++
+++	} else {
+              error_report("Unsupported IGD GMS value 0x%x", vdev->igd_gms);
+              vdev->igd_gms = 0;
+-@@ -565,11 +582,6 @@ void vfio_probe_igd_bar4_quirk(VFIOPCIDevice *vdev, int nr)
++         }
++@@ -566,11 +548,6 @@ void vfio_probe_igd_bar4_quirk(VFIOPCIDevice *vdev, int nr)
+      fw_cfg_add_file(fw_cfg_find(), "etc/igd-bdsm-size",
+                      bdsm_size, sizeof(*bdsm_size));
+-
++ 
+ -    /* GMCH is read-only, emulated */
+ -    pci_set_long(vdev->pdev.config + IGD_GMCH, gmch);
+ -    pci_set_long(vdev->pdev.wmask + IGD_GMCH, 0);
+@@ -120,5 +92,3 @@ index 64e332746b..573cd53803 100644
+      /* BDSM is read-write, emulated.  The BIOS needs to be able to write it */
+      pci_set_long(vdev->pdev.config + IGD_BDSM, 0);
+      pci_set_long(vdev->pdev.wmask + IGD_BDSM, ~0);
+---
+-2.30.2
