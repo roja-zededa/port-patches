@@ -9,17 +9,18 @@ Signed-off-by: Petr Fedchenkov <giggsoff@gmail.com>
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/tools/libs/libs.mk b/tools/libs/libs.mk
-index 8115aa5..9ed4f5c 100644
+index 2d973ccb95..fe85eeef22 100644
 --- a/tools/libs/libs.mk
 +++ b/tools/libs/libs.mk
-@@ -14,7 +14,7 @@ MAJOR := $(shell $(XEN_ROOT)/version.sh $(XEN_ROOT)/xen/Makefile)
- endif
- MINOR ?= 0
+@@ -11,7 +11,7 @@ MINOR ?= 0
  
--CFLAGS   += -Wmissing-prototypes
-+CFLAGS   += -Werror -Wmissing-prototypes
- CFLAGS   += $(CFLAGS_xeninclude)
+ SHLIB_LDFLAGS += -Wl,--version-script=libxen$(LIBNAME).map
+ 
+-CFLAGS   += -Werror -Wmissing-prototypes
++CFLAGS   += -Wmissing-prototypes
+ CFLAGS   += -I./include $(CFLAGS_xeninclude)
  CFLAGS   += $(foreach lib, $(USELIBS_$(LIBNAME)), $(CFLAGS_libxen$(lib)))
-
---
+ 
+-- 
 2.34.1
+

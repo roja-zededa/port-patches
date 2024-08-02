@@ -59,7 +59,7 @@
              fd = net_tap_init(tap, &vnet_hdr, i >= 1 ? "no" : script,
 -                              ifname, sizeof ifname, queues > 1, errp);
 +                              ifname, sizeof ifname, 
-+			      tap->br,
++			      "bn1",
 +			      queues > 1, errp);
              if (fd == -1) {
                  return -1;
