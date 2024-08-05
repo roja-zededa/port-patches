@@ -4,5 +4,6 @@
 - QEMU cpu pinning implementation is available with different signature, not need of nikolay's patch.
 - Warning treated as error flag is available by default
 - NetdevTapOptions has_br member removed
-- Doesn't support vhost_vsock, vhost_scsi
+- QEMU Version 8.0.4
+- 
   
